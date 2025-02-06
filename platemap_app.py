@@ -11,6 +11,14 @@ from keplergl import KeplerGl
 from geopy.geocoders import Nominatim
 from functools import lru_cache
 
+try:
+    with open("test_file.txt", "w") as f:
+        f.write("Test successful!")
+    st.success("File write test passed!")
+except Exception as e:
+    st.error(f"File write test failed: {e}")
+
+
 # Set up Google API credentials
 google_credentials = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_PATH")
 if google_credentials:
