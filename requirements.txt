@@ -1,5 +1,5 @@
 streamlit
-wikipedia-api
+wikipedia
 requests
 beautifulsoup4
 pandas
