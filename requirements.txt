@@ -3,7 +3,7 @@ wikipedia
 requests
 beautifulsoup4
 pandas
-opencv-python
+opencv-python-headless
 google-cloud-vision
 openai
 keplergl
