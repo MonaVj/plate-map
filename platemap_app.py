@@ -1,4 +1,5 @@
 import os
+import json
 import streamlit as st
 import wikipedia
 import requests
@@ -6,28 +7,24 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import cv2
 from google.cloud import vision
-import openai
+from google.oauth2 import service_account
+from functools import lru_cache
 from keplergl import KeplerGl
 from geopy.geocoders import Nominatim
-from functools import lru_cache
 
 # Load API keys securely from environment variables
-openai.api_key = os.getenv("OPENAI_API_KEY")  # OpenAI API Key from environment
+openai_api_key = os.getenv("OPENAI_API_KEY")  # OpenAI API Key from environment
 usda_api_key = os.getenv("USDA_API_KEY")  # USDA API Key from environment
+google_credentials_json = os.getenv("GOOGLE_CREDENTIALS_JSON")  # Google Vision JSON from environment
 
-# Debugging Google Vision Credentials
-st.write("Google Vision Credentials Content:")
-st.write(os.getenv("GOOGLE_APPLICATION_CREDENTIALS_PATH"))
+if not google_credentials_json:
+    st.error("Google Vision credentials not found. Please check your environment variables.")
+    st.stop()
 
-# Handle Google Vision API credentials dynamically
-google_credentials = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_PATH")  # From environment
-if google_credentials:
-    with open("google_credentials.json", "w") as f:
-        f.write(google_credentials)
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "google_credentials.json"
-    st.success("Google Vision API credentials loaded successfully!")
-else:
-    st.error("Google Vision credentials not found. Check your environment variables.")
+# Create Google Vision API client from JSON string
+google_credentials = json.loads(google_credentials_json)
+credentials = service_account.Credentials.from_service_account_info(google_credentials)
+vision_client = vision.ImageAnnotatorClient(credentials=credentials)
 
 # Initialize tools
 geolocator = Nominatim(user_agent="platemap")
@@ -35,12 +32,11 @@ wikipedia.set_lang("en")
 
 # Detect and annotate food in image
 def detect_food_from_image(image_path):
-    client = vision.ImageAnnotatorClient()
     with open(image_path, "rb") as image_file:
         content = image_file.read()
         image = vision.Image(content=content)
 
-    response = client.object_localization(image=image)
+    response = vision_client.object_localization(image=image)
     detected_foods = []
     image_cv = cv2.imread(image_path)
 
@@ -62,7 +58,7 @@ def detect_food_from_image(image_path):
 # Fetch food origin from Wikipedia and FoodAtlas
 @lru_cache(maxsize=50)
 def get_food_origin_coordinates(food_name):
-    origins = []  # Store origin data
+    origins = []
 
     # Wikipedia origin
     try:
@@ -89,7 +85,7 @@ def get_food_origin_coordinates(food_name):
 
     # Default if no origin is found
     if not origins:
-        origins.append(("Unknown origin", 0, 0))  # Default to "unknown" with no coordinates
+        origins.append(("Unknown origin", 0, 0))
 
     return origins
 
@@ -118,7 +114,7 @@ def generate_quirky_fact(food_name):
         response = openai.Completion.create(
             model="text-davinci-003",
             prompt=f"Tell me a quirky fact about {food_name}.",
-            max_tokens=30  # Reduced tokens for efficiency
+            max_tokens=30
         )
         return response.choices[0].text.strip()
     except:
@@ -128,12 +124,12 @@ def generate_quirky_fact(food_name):
 def visualize_with_kepler(food_name, user_location):
     user_coords = geolocator.geocode(user_location)
     food_origins = get_food_origin_coordinates(food_name)
-    
+
     data = pd.DataFrame(
         [{"Name": "User Location", "Latitude": user_coords.latitude, "Longitude": user_coords.longitude, "Type": "Consumption Place"}] +
         [{"Name": origin[0], "Latitude": origin[1], "Longitude": origin[2], "Type": "Food Origin"} for origin in food_origins]
     )
-    
+
     kepler_map = KeplerGl(height=600)
     kepler_map.add_data(data=data, name="Food Network")
     kepler_map.save_to_html(file_name="kepler_map.html")
@@ -149,7 +145,7 @@ if uploaded_file and user_location:
         # Save uploaded file
         with open("uploaded_image.jpg", "wb") as f:
             f.write(uploaded_file.read())
-        
+
         # Detect food items
         detected_foods, annotated_image = detect_food_from_image("uploaded_image.jpg")
         st.image(annotated_image, caption="Detected Food Items", use_column_width=True)
@@ -165,8 +161,3 @@ if uploaded_file and user_location:
         kepler_map = visualize_with_kepler(detected_foods[0]['name'], user_location)
         with open(kepler_map, "rb") as f:
             st.download_button(label="Download Map", data=f, file_name="kepler_map.html", mime="text/html")
-
-# Cleanup temporary credentials
-if os.path.exists("google_credentials.json"):
-    os.remove("google_credentials.json")
-    st.info("Temporary Google Vision credentials file deleted.")
