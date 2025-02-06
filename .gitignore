@@ -1,14 +1,2 @@
-# Ignore Python cache and temporary files
-*.pyc
-__pycache__/
-
-# Ignore environment files and credentials
-.env
-credentials/*.json
-
-# Ignore Streamlit deployment files
-.streamlit/
-
-# Ignore OS-specific files
-.DS_Store  # macOS
-Thumbs.db  # Windows
+*.json
+secrets/
