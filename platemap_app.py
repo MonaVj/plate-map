@@ -7,14 +7,13 @@ import pandas as pd
 import cv2
 from google.cloud import vision
 import openai
-from dotenv import load_dotenv
 from keplergl import KeplerGl
 from geopy.geocoders import Nominatim
 
-# Fetch API keys and credentials path
-openai.api_key = os.getenv("OPENAI_API_KEY")
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_PATH")
-usda_api_key = os.getenv("USDA_API_KEY")
+# Load API keys and credentials
+openai.api_key = os.getenv("OPENAI_API_KEY")  # OpenAI API Key
+usda_api_key = os.getenv("USDA_API_KEY")  # USDA API Key
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_PATH")  # Google Vision JSON path
 
 # Initialize tools
 geolocator = Nominatim(user_agent="platemap")
@@ -46,23 +45,42 @@ def detect_food_from_image(image_path):
     cv2.imwrite(output_path, image_cv)
     return detected_foods, output_path
 
-# Fetch data from APIs
-def get_food_origin_from_wikipedia(food_name):
+# Fetch data from Wikipedia and FoodAtlas
+def get_food_origin_coordinates(food_name):
+    origins = []  # List to store origin data
+    
+    # Fetch origin description from Wikipedia
     try:
-        summary = wikipedia.summary(food_name, sentences=2)
-        return summary
+        wiki_summary = wikipedia.summary(food_name, sentences=2)
+        wiki_location = geolocator.geocode(food_name)
+        if wiki_location:
+            origins.append((f"Wikipedia: {wiki_summary}", wiki_location.latitude, wiki_location.longitude))
     except:
-        return f"No information found for {food_name} on Wikipedia."
+        pass  # Handle cases where Wikipedia data is unavailable
+    
+    # Fetch additional origin data from FoodAtlas
+    try:
+        url = f"https://www.tasteatlas.com/{food_name.lower().replace(' ', '-')}"
+        response = requests.get(url)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, "html.parser")
+            description = soup.find("meta", {"name": "description"})
+            location_text = description["content"] if description else f"No specific origins found for {food_name}"
+            
+            # Try to extract location name and geocode it
+            location = geolocator.geocode(location_text.split(",")[0])  # Use first part of description for location
+            if location:
+                origins.append((location_text, location.latitude, location.longitude))
+    except:
+        pass  # Handle cases where FoodAtlas data is unavailable
 
-def get_food_origin_from_foodatlas(food_name):
-    url = f"https://www.tasteatlas.com/{food_name.lower().replace(' ', '-')}"
-    response = requests.get(url)
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, "html.parser")
-        description = soup.find("meta", {"name": "description"})
-        return description["content"] if description else f"No description for {food_name} on FoodAtlas."
-    return f"No data for {food_name} on FoodAtlas."
+    # Default fallback if no origin is found
+    if not origins:
+        origins.append(("Unknown origin", 0, 0))  # Default to "unknown" with no coordinates
 
+    return origins
+
+# Fetch nutritional data
 def get_nutritional_data(food_name):
     url = f"https://api.nal.usda.gov/fdc/v1/foods/search?query={food_name}&api_key={usda_api_key}"
     response = requests.get(url)
@@ -79,6 +97,7 @@ def get_nutritional_data(food_name):
             return nutrients
     return f"No nutritional data for {food_name}."
 
+# Generate quirky fact using OpenAI
 def generate_quirky_fact(food_name):
     try:
         response = openai.Completion.create(
@@ -90,12 +109,16 @@ def generate_quirky_fact(food_name):
     except:
         return "Could not generate a quirky fact."
 
+# Visualize data with KeplerGl
 def visualize_with_kepler(food_name, user_location):
     user_coords = geolocator.geocode(user_location)
-    data = pd.DataFrame([
-        {"Name": food_name, "Latitude": user_coords.latitude, "Longitude": user_coords.longitude, "Type": "User Location"},
-        {"Name": "India", "Latitude": 20.5937, "Longitude": 78.9629, "Type": "Food Origin"}
-    ])
+    food_origins = get_food_origin_coordinates(food_name)
+    
+    data = pd.DataFrame(
+        [{"Name": "User Location", "Latitude": user_coords.latitude, "Longitude": user_coords.longitude, "Type": "Consumption Place"}] +
+        [{"Name": origin[0], "Latitude": origin[1], "Longitude": origin[2], "Type": "Food Origin"} for origin in food_origins]
+    )
+    
     kepler_map = KeplerGl(height=600)
     kepler_map.add_data(data=data, name="Food Network")
     kepler_map.save_to_html(file_name="kepler_map.html")
@@ -104,7 +127,9 @@ def visualize_with_kepler(food_name, user_location):
 # Streamlit UI
 st.title("🍽️ PlateMap: Explore Your Food's Story!")
 uploaded_file = st.file_uploader("Upload an image of your plate", type=["jpg", "png"])
-if uploaded_file:
+user_location = st.text_input("Where are you eating this? (City or State)", placeholder="E.g., Boston, Massachusetts")
+
+if uploaded_file and user_location:
     with open("uploaded_image.jpg", "wb") as f:
         f.write(uploaded_file.read())
     detected_foods, annotated_image = detect_food_from_image("uploaded_image.jpg")
@@ -112,13 +137,12 @@ if uploaded_file:
 
     for food in detected_foods:
         st.subheader(f"Dish: {food['name']} (Confidence: {food['confidence']:.2f})")
-        st.markdown(f"**Wikipedia:** {get_food_origin_from_wikipedia(food['name'])}")
-        st.markdown(f"**FoodAtlas:** {get_food_origin_from_foodatlas(food['name'])}")
+        st.markdown(f"**Wikipedia:** {get_food_origin_coordinates(food['name'])[0][0]}")
         st.markdown("**Nutritional Data:**")
         st.json(get_nutritional_data(food["name"]))
         st.markdown(f"**Quirky Fact:** {generate_quirky_fact(food['name'])}")
 
     st.markdown("## 🌍 Map")
-    kepler_map = visualize_with_kepler(detected_foods[0]['name'], "Boston")
+    kepler_map = visualize_with_kepler(detected_foods[0]['name'], user_location)
     with open(kepler_map, "rb") as f:
         st.download_button(label="Download Map", data=f, file_name="kepler_map.html", mime="text/html")
