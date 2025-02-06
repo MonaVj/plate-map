@@ -11,10 +11,18 @@ from keplergl import KeplerGl
 from geopy.geocoders import Nominatim
 from functools import lru_cache
 
-# Load API keys securely from GitHub Secrets
-openai.api_key = os.getenv("OPENAI_API_KEY")  # OpenAI API Key from GitHub Secrets
-usda_api_key = os.getenv("USDA_API_KEY")  # USDA API Key from GitHub Secrets
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_PATH")  # Path to Google Vision JSON
+# Set up Google API credentials
+google_credentials = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_PATH")
+if google_credentials:
+    with open("google_credentials.json", "w") as f:
+        f.write(google_credentials)
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "google_credentials.json"
+else:
+    st.error("Google Vision credentials not found. Check your environment variables.")
+
+# Load API keys securely
+openai.api_key = os.getenv("OPENAI_API_KEY")
+usda_api_key = os.getenv("USDA_API_KEY")
 
 # Initialize tools
 geolocator = Nominatim(user_agent="platemap")
@@ -49,7 +57,7 @@ def detect_food_from_image(image_path):
 # Fetch food origin from Wikipedia and FoodAtlas
 @lru_cache(maxsize=50)
 def get_food_origin_coordinates(food_name):
-    origins = []  # Store origin data
+    origins = []
 
     # Wikipedia origin
     try:
@@ -74,9 +82,8 @@ def get_food_origin_coordinates(food_name):
     except:
         pass
 
-    # Default if no origin is found
     if not origins:
-        origins.append(("Unknown origin", 0, 0))  # Default to "unknown" with no coordinates
+        origins.append(("Unknown origin", 0, 0))
 
     return origins
 
@@ -105,7 +112,7 @@ def generate_quirky_fact(food_name):
         response = openai.Completion.create(
             model="text-davinci-003",
             prompt=f"Tell me a quirky fact about {food_name}.",
-            max_tokens=30  # Reduced tokens for efficiency
+            max_tokens=30
         )
         return response.choices[0].text.strip()
     except:
@@ -133,11 +140,9 @@ user_location = st.text_input("Where are you eating this? (City or State)", plac
 
 if uploaded_file and user_location:
     with st.spinner("Processing..."):
-        # Save uploaded file
         with open("uploaded_image.jpg", "wb") as f:
             f.write(uploaded_file.read())
         
-        # Detect food items
         detected_foods, annotated_image = detect_food_from_image("uploaded_image.jpg")
         st.image(annotated_image, caption="Detected Food Items", use_column_width=True)
 
