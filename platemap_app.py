@@ -15,6 +15,10 @@ from functools import lru_cache
 openai.api_key = os.getenv("OPENAI_API_KEY")  # OpenAI API Key from environment
 usda_api_key = os.getenv("USDA_API_KEY")  # USDA API Key from environment
 
+# Debugging Google Vision Credentials
+st.write("Google Vision Credentials Content:")
+st.write(os.getenv("GOOGLE_APPLICATION_CREDENTIALS_PATH"))
+
 # Handle Google Vision API credentials dynamically
 google_credentials = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_PATH")  # From environment
 if google_credentials:
