@@ -7,10 +7,11 @@ import pandas as pd
 import cv2
 from google.cloud import vision
 import openai
+from dotenv import load_dotenv
 from keplergl import KeplerGl
 from geopy.geocoders import Nominatim
 
-# Load API keys and credentials from environment variables
+# Fetch API keys and credentials path
 openai.api_key = os.getenv("OPENAI_API_KEY")
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_PATH")
 usda_api_key = os.getenv("USDA_API_KEY")
