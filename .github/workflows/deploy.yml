@@ -16,18 +16,18 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.9'  # Ensure a stable version is used
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libjpeg-dev zlib1g-dev
+
+      - name: Upgrade pip
+        run: pip install --upgrade pip
 
       - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Set environment variables
-        run: |
-          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
-          echo "USDA_API_KEY=${{ secrets.USDA_API_KEY }}" >> $GITHUB_ENV
-          echo "GOOGLE_CREDENTIALS_JSON=${{ secrets.GOOGLE_CREDENTIALS_JSON }}" >> $GITHUB_ENV
+        run: pip install -r requirements.txt
 
       - name: Run Streamlit App
         run: streamlit run app.py
