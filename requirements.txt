@@ -8,6 +8,6 @@ google-cloud-vision==3.2.0
 google-auth==2.19.1
 keplergl==0.2.2
 geopy==2.3.0
-pillow==9.3.0
+pillow==9.1.0
 openai==0.27.0
 python-dotenv==1.0.0
