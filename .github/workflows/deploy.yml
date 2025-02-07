@@ -20,13 +20,14 @@ jobs:
 
       - name: Install dependencies
         run: |
+          pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Export environment variables
+      - name: Set environment variables
         run: |
           echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
           echo "USDA_API_KEY=${{ secrets.USDA_API_KEY }}" >> $GITHUB_ENV
-          echo "GOOGLE_CREDENTIALS_JSON=${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}" >> $GITHUB_ENV
+          echo "GOOGLE_CREDENTIALS_JSON=${{ secrets.GOOGLE_CREDENTIALS_JSON }}" >> $GITHUB_ENV
 
       - name: Run Streamlit App
         run: streamlit run app.py
