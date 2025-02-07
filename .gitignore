@@ -1,2 +1,24 @@
+# Ignore environment variables and credentials
+.env
 *.json
-secrets/
+
+# Ignore virtual environments
+venv/
+__pycache__/
+
+# Ignore temporary and log files
+*.log
+*.csv
+*.db
+*.sqlite
+*.xlsx
+
+# Ignore Streamlit static files and cache
+.streamlit/
+*.pyc
+*.pyo
+
+# Ignore temporary files created by the application
+uploaded_image.jpg
+annotated_image.jpg
+kepler_map.html
